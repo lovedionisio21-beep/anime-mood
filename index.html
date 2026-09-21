@@ -45,7 +45,27 @@ function next(){if(q<questions.length-1){q++;renderQ()}else showResults()}
 function back(){if(q>0){q--;renderQ()}}
 function score(a){let s=0;const cur=answers.current||[],want=answers.desired||[];s+=cur.filter(x=>a.moods.includes(x)).length*18;const map={laugh:'funny',comfort:'comfort',hope:'hopeful',adrenaline:'adrenaline',catharsis:'catharsis',inspired:'inspired',dark:'dark',romance:'romantic',wonder:'mysterious'};s+=want.map(x=>map[x]).filter(x=>a.tone.includes(x)).length*14;const energy={low:3,medium:6,high:9}[answers.energy]||6;const pace={low:3,medium:6,high:9}[answers.pacing]||6;s+=Math.max(0,10-Math.abs(a.pace-energy))*2;s+=Math.max(0,10-Math.abs(a.pace-pace));const intensity={low:3,medium:6,high:9}[answers.intensity]||6;const comedy={low:2,medium:5,high:9}[answers.comedy]||5;s+=Math.max(0,10-Math.abs(a.emotion-intensity))*1.5;s+=Math.max(0,10-Math.abs(a.comedy-comedy));if(answers.length==='short'&&a.episodes<=13)s+=12;if(answers.length==='medium'&&a.episodes>13&&a.episodes<=50)s+=10;if(answers.length==='long'&&a.episodes>40)s+=12;if(answers.length==='any')s+=3;return s}
 function explain(a){let c=(answers.current||[]).join(', ')||'your current mood',d=(answers.desired||[]).join(', ')||'a good experience';return 'You feel '+c+' and want '+d+'. '+a.name+' matches through '+a.tone.slice(0,3).join(', ')+' energy, with '+a.genres.slice(0,2).join(' + ')+' as the main flavor.'}
-function card(a,label){let img=a.images?.jpg?.large_image_url||a.images?.jpg?.image_url||'';return '<article class="card"><div class="poster">'+(img?'<img src="'+img+'" loading="lazy" alt="'+a.name+' poster">':'')+'<span class="rank">'+label+'</span><h3>'+a.name+'</h3></div><div class="body"><div>'+a.genres.slice(0,3).map(g=>'<span class="tag">'+g+'</span>').join(' ')+'</div><p class="why"><b>Why it matches:</b> '+explain(a)+'</p><div class="meta"><span>'+((a.score||0).toFixed? a.score.toFixed(0):0)+' fit</span><span>'+((a.episodes||'?'))+' eps</span></div><div class="buttons"><button class="watch" onclick="source(''+encodeURIComponent(a.name)+'')">Find where to watch</button><button onclick="details(''+encodeURIComponent(a.name)+'')">Why?</button></div></div></article>'}
+function card(a,label){
+  const img=a.images?.jpg?.large_image_url||a.images?.jpg?.image_url||'';
+  const key=encodeURIComponent(a.name);
+  const genres=(a.genres||[]).slice(0,3);
+  return '<article class="card">'+
+    '<div class="poster">'+
+      (img?'<img src="'+img+'" loading="lazy" alt="'+a.name.replace(/"/g,'&quot;')+' poster">':'')+
+      '<span class="rank">'+label+'</span>'+
+      '<h3>'+a.name+'</h3>'+
+    '</div>'+
+    '<div class="body">'+
+      '<div>'+genres.map(g=>'<span class="tag">'+g+'</span>').join(' ')+'</div>'+
+      '<p class="why"><b>Why it matches:</b> '+explain(a)+'</p>'+
+      '<div class="meta"><span>'+((a.score||0).toFixed? a.score.toFixed(0):0)+' fit</span><span>'+((a.episodes||'?'))+' eps</span></div>'+
+      '<div class="buttons">'+
+        '<button class="watch" onclick="source(\''+key+'\')">Find where to watch</button>'+
+        '<button onclick="details(\''+key+'\')">Why?</button>'+
+      '</div>'+
+    '</div>'+
+  '</article>';
+}
 function showResults(){let ranked=catalog.map(a=>({...a,score:score(a)})).sort((a,b)=>b.score-a.score);let picks=ranked.slice(0,3);document.getElementById('results').classList.remove('hidden');document.getElementById('resultTitle').textContent='Your mood, translated into anime.';document.getElementById('resultIntro').textContent='Strong matches first, with the engine balancing your current state against what you want to feel.';document.getElementById('profile').innerHTML=['Feeling: '+(answers.current||[]).join(', '),'Want: '+(answers.desired||[]).join(', '),'Energy: '+answers.energy,'Pacing: '+answers.pacing,'Commitment: '+answers.length].map(x=>'<span class="chip">'+x+'</span>').join('');let b=picks[0]||fallback[0];document.getElementById('flow').innerHTML='<div><b>CURRENT MOOD</b><span>'+(answers.current||[]).join(', ')+'</span></div><div><b>DESIRED EXPERIENCE</b><span>'+(answers.desired||[]).join(', ')+'</span></div><div><b>ANIME CHARACTERISTICS</b><span>'+b.tone.slice(0,3).join(' · ')+'</span></div><div><b>WHY IT MATCHES</b><span>Emotion + preferences + discovery</span></div>';document.getElementById('resultsGrid').innerHTML=picks.map((a,i)=>card(a,i===0?'🥇 Best Match':i===1?'🥈 Another Match':'🃏 Wild Card')).join('');scrollToId('results')}
 function feedback(btn,type){document.querySelectorAll('.feedback button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');feedbackState=type;let h=JSON.parse(localStorage.getItem('animeMoodFeedback')||'[]');h.push({type,at:new Date().toISOString()});localStorage.setItem('animeMoodFeedback',JSON.stringify(h))}
 function source(n){let title=decodeURIComponent(n);window.open('https://theindex.moe/library/anime?search='+encodeURIComponent(title),'_blank')}
