@@ -43,57 +43,157 @@ const EMOTION_BY_GENRE={Drama:9,Psychological:9,Thriller:8,Romance:7,Supernatura
 const COMEDY_BY_GENRE={Comedy:9,'Slice of Life':6,Family:7,Sports:6,Romance:5,Adventure:4,Fantasy:4,Action:3,Drama:2,Thriller:1,Psychological:1,Horror:1,Mystery:2,'Sci-Fi':2,Supernatural:3,Music:5};
 function derivedStats(a){const gs=a.genres||[];const avg=(map,def)=>gs.length?gs.reduce((n,g)=>n+(map[g]||def),0)/gs.length:def;return {pace:a.pace??avg(PACE_BY_GENRE,6),emotion:a.emotion??avg(EMOTION_BY_GENRE,6),comedy:a.comedy??avg(COMEDY_BY_GENRE,5)}}
 function feedbackAdjust(a){const h=JSON.parse(localStorage.getItem('animeMoodFeedback')||'[]');if(!h.length)return 0;let adj=0;const liked=h.filter(x=>x.type==='exact').slice(-5);const disliked=h.filter(x=>x.type==='wrong').slice(-5);const likedGenres=new Set(liked.flatMap(x=>x.results?.flatMap(r=>r.genres||[])||[]));const dislikedGenres=new Set(disliked.flatMap(x=>x.results?.flatMap(r=>r.genres||[])||[]));adj+=(a.genres||[]).filter(g=>likedGenres.has(g)).length*4;adj-=(a.genres||[]).filter(g=>dislikedGenres.has(g)).length*5;return adj}
-function score(a){const st=derivedStats(a),genres=a.genres||[],cur=answers.current||[],want=answers.desired||[];let s=0;const desiredGenres=new Set(want.flatMap(x=>MOOD_GENRES[x]||[]));const currentGenres=new Set(cur.flatMap(x=>CURRENT_BONUS[x]||[]));s+=genres.filter(g=>desiredGenres.has(g)).length*18;s+=genres.filter(g=>currentGenres.has(g)).length*7;const energy={low:3,medium:6,high:9}[answers.energy]||6;const pace={low:3,medium:6,high:9}[answers.pacing]||6;const intensity={low:3,medium:6,high:9}[answers.intensity]||6;const comedy={low:2,medium:5,high:9}[answers.comedy]||5;s+=Math.max(0,10-Math.abs(st.pace-energy))*2;s+=Math.max(0,10-Math.abs(st.pace-pace))*2;s+=Math.max(0,10-Math.abs(st.emotion-intensity))*2;s+=Math.max(0,10-Math.abs(st.comedy-comedy))*1.5;if(answers.length==='short')s+=a.episodes&&a.episodes<=13?15:-6;if(answers.length==='medium')s+=a.episodes&&a.episodes>13&&a.episodes<=50?12:-3;if(answers.length==='long')s+=a.episodes&&a.episodes>40?15:-2;if(answers.length==='any')s+=4;if(want.includes('comfort')&&genres.some(g=>['Horror','Psychological','Thriller'].includes(g)))s-=10;if(want.includes('laugh')&&genres.includes('Comedy'))s+=10;if(want.includes('dark')&&genres.some(g=>['Psychological','Horror','Thriller','Mystery'].includes(g)))s+=10;if(want.includes('romance')&&genres.includes('Romance'))s+=10;if(want.includes('wonder')&&genres.some(g=>['Mystery','Sci-Fi','Fantasy'].includes(g)))s+=8;s+=Math.min(10,(a.score||0));s+=feedbackAdjust(a);return Math.round(s*10)/10}
+function score(a){
+  const st=derivedStats(a),genres=a.genres||[],cur=answers.current||[],want=answers.desired||[];
+  let s=0;
+  const desiredGenres=new Set(want.flatMap(x=>MOOD_GENRES[x]||[]));
+  const currentGenres=new Set(cur.flatMap(x=>CURRENT_BONUS[x]||[]));
+  const energy={low:3,medium:6,high:9}[answers.energy]||6;
+  const paceTarget={low:3,medium:6,high:9}[answers.pacing]||6;
+  const intensity={low:3,medium:6,high:9}[answers.intensity]||6;
+  const comedy={low:2,medium:5,high:9}[answers.comedy]||5;
+  const desiredHits=genres.filter(g=>desiredGenres.has(g)).length;
+  const currentHits=genres.filter(g=>currentGenres.has(g)).length;
+  s+=desiredHits*24;
+  s+=currentHits*8;
+  s+=Math.max(0,10-Math.abs(st.pace-energy))*2.5;
+  s+=Math.max(0,10-Math.abs(st.pace-paceTarget))*3;
+  s+=Math.max(0,10-Math.abs(st.emotion-intensity))*2.5;
+  s+=Math.max(0,10-Math.abs(st.comedy-comedy))*2;
+  if(answers.length==='short')s+=a.episodes&&a.episodes<=13?16:-8;
+  if(answers.length==='medium')s+=a.episodes&&a.episodes>13&&a.episodes<=50?14:-4;
+  if(answers.length==='long')s+=a.episodes&&a.episodes>40?16:-3;
+  if(answers.length==='any')s+=4;
+  if(want.includes('comfort'))s+=genres.filter(g=>['Slice of Life','Family','Fantasy','Romance','Music'].includes(g)).length*7;
+  if(want.includes('laugh'))s+=genres.includes('Comedy')?14:0;
+  if(want.includes('dark'))s+=genres.filter(g=>['Psychological','Horror','Thriller','Mystery'].includes(g)).length*9;
+  if(want.includes('romance'))s+=genres.includes('Romance')?14:0;
+  if(want.includes('wonder'))s+=genres.filter(g=>['Mystery','Sci-Fi','Fantasy','Psychological'].includes(g)).length*7;
+  if(want.includes('catharsis'))s+=genres.filter(g=>['Drama','Romance','Supernatural'].includes(g)).length*7;
+  if(want.includes('adrenaline'))s+=genres.filter(g=>['Action','Sports','Adventure','Thriller'].includes(g)).length*7;
+  if(want.includes('inspired'))s+=genres.filter(g=>['Sports','Adventure','Music','Drama'].includes(g)).length*6;
+  if(want.includes('comfort')&&genres.some(g=>['Horror','Psychological','Thriller'].includes(g)))s-=12;
+  s+=Math.min(12,(a.score||0)*1.2);
+  s+=Math.min(8,(a.popularity?Math.max(0,10-Math.log10(a.popularity)):0));
+  s+=feedbackAdjust(a);
+  return Math.round(s*10)/10;
+}
 function explain(a){const st=derivedStats(a),c=(answers.current||[]).join(', ')||'your current mood',d=(answers.desired||[]).join(', ')||'a good experience';const matched=(answers.desired||[]).flatMap(x=>MOOD_GENRES[x]||[]).filter(g=>(a.genres||[]).includes(g)).slice(0,3);const reasons=matched.length?matched.join(', '):(a.genres||[]).slice(0,2).join(' + ')||'its overall tone';return 'CURRENT MOOD: '+c+'. DESIRED EXPERIENCE: '+d+'. WHY IT MATCHES: '+a.name+' delivers '+reasons+' with '+Math.round(st.pace)+'/10 pacing and '+Math.round(st.emotion)+'/10 emotional intensity.'}
 function safeText(s){return String(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
-function imageUrl(a){return a.images?.webp?.large_image_url||a.images?.webp?.image_url||a.images?.jpg?.large_image_url||a.images?.jpg?.image_url||''}
+function imageUrl(a){return a.images?.jpg?.large_image_url||a.images?.webp?.large_image_url||a.images?.jpg?.image_url||a.images?.webp?.image_url||''}
 function imageProxyUrl(raw){return raw?('https://images.weserv.nl/?url='+encodeURIComponent(raw.replace(/^https?:\/\//,''))):''}
-window.addEventListener('error',function(e){const t=e.target;if(t&&t.tagName==='IMG'&&t.dataset&&t.dataset.rawSrc){if(t.src!==t.dataset.rawSrc){t.src=t.dataset.rawSrc;return;}t.removeAttribute('src');const p=t.closest('.poster');if(p)p.classList.add('no-image');}},true);
+window.addEventListener('error',function(e){
+  const t=e.target;
+  if(!t||t.tagName!=='IMG'||!t.dataset)return;
+  if(t.dataset.proxySrc && !t.dataset.proxyTried){
+    t.dataset.proxyTried='1'; t.src=t.dataset.proxySrc; return;
+  }
+  if(t.dataset.rawSrc && !t.dataset.rawTried){
+    t.dataset.rawTried='1'; t.src=t.dataset.rawSrc; return;
+  }
+  t.removeAttribute('src');
+  const p=t.closest('.poster'); if(p)p.classList.add('no-image');
+  if(t.classList.contains('preview-poster')) t.classList.add('no-image');
+},true);
 function card(a,label){
   const rawImg=imageUrl(a);
-  const img=imageProxyUrl(rawImg)||rawImg;
-  const key=encodeURIComponent(a.name).replace(/'/g,'%27');
+  const proxy=imageProxyUrl(rawImg);
+  const key=String(a.malId||a.name||'');
   const genres=(a.genres||[]).slice(0,3);
   return '<article class="card">'+
-    '<div class="poster '+(img?'':'no-image')+'">'+
-      (img?'<img src="'+img+'" data-raw-src="'+safeText(rawImg)+'" loading="lazy" referrerpolicy="no-referrer" alt="'+a.name.replace(/"/g,'&quot;')+' poster">':'')+
-      '<span class="rank">'+label+'</span>'+
-      '<h3>'+a.name+'</h3>'+
+    '<div class="poster '+(rawImg?'':'no-image')+'">'+
+      (rawImg?'<img src="'+safeText(rawImg)+'" data-raw-src="'+safeText(rawImg)+'" data-proxy-src="'+safeText(proxy)+'" loading="lazy" referrerpolicy="no-referrer" alt="'+safeText(a.name)+' poster">':'')+
+      '<span class="rank">'+safeText(label)+'</span>'+
+      '<h3>'+safeText(a.name)+'</h3>'+
     '</div>'+
     '<div class="body">'+
-      '<div>'+genres.map(g=>'<span class="tag">'+g+'</span>').join(' ')+'</div>'+
-      '<p class="why"><b>Why it matches:</b> '+explain(a)+'</p>'+
-      '<div class="meta"><span>'+((a.score||0).toFixed? a.score.toFixed(0):0)+' fit</span><span>'+((a.episodes||'?'))+' eps</span></div>'+
+      '<div>'+genres.map(g=>'<span class="tag">'+safeText(g)+'</span>').join(' ')+'</div>'+
+      '<p class="why"><b>Why it matches:</b> '+safeText(explain(a))+'</p>'+
+      '<div class="meta"><span>'+Math.round(a.score||0)+' fit</span><span>'+((a.episodes||'?'))+' eps</span></div>'+
       '<div class="buttons">'+
-        '<button class="watch" data-preview="'+key+'">Preview</button>'+
-        '<button data-watch="'+key+'">Where to watch</button>'+
+        '<button class="watch" data-preview-id="'+safeText(key)+'">Preview</button>'+
+        '<button data-watch-id="'+safeText(key)+'">Where to watch</button>'+
       '</div>'+
     '</div>'+
   '</article>';
 }
-function showResults(){let ranked=catalog.map(a=>({...a,score:score(a)})).filter(a=>a.name).sort((a,b)=>b.score-a.score);const strong=ranked.slice(0,3),pool=ranked.slice(3,Math.min(18,ranked.length));const wild=pool.length?pool[Math.floor((answers.desired||[]).length*7+(answers.current||[]).length*3)%pool.length]:null;const picks=[...strong,...(wild?[wild]:[])];picks.forEach((a,i)=>{a.recommendationType=i<3?'strong':'wildcard'});const top=picks[0]||fallback[0],st=derivedStats(top);document.getElementById('results').classList.remove('hidden');document.getElementById('resultTitle').textContent='Your mood, translated into anime.';document.getElementById('resultIntro').textContent='3 strong matches + 1 intentional wild card. The engine separates how you feel from what you want to feel.';document.getElementById('profile').innerHTML=['Feeling: '+((answers.current||[]).join(', ')||'not specified'),'Want: '+((answers.desired||[]).join(', ')||'open'),'Energy: '+answers.energy,'Pacing: '+answers.pacing,'Commitment: '+answers.length,'Intensity: '+answers.intensity].map(x=>'<span class="chip">'+safeText(x)+'</span>').join('');document.getElementById('flow').innerHTML='<div><b>CURRENT MOOD</b><span>'+safeText((answers.current||[]).join(', ')||'not specified')+'</span></div><div><b>DESIRED EXPERIENCE</b><span>'+safeText((answers.desired||[]).join(', ')||'open')+'</span></div><div><b>ANIME CHARACTERISTICS</b><span>'+safeText((top.genres||[]).slice(0,3).join(' · '))+' · '+Math.round(st.pace)+'/10 pace</span></div><div><b>WHY IT MATCHES</b><span>'+safeText(explain(top))+'</span></div>';document.getElementById('resultsGrid').innerHTML=picks.map((a,i)=>card(a,i===0?'🥇 Strong Match':i===1?'🥈 Strong Match':i===2?'🥉 Strong Match':'🃏 Your Wild Card')).join('');localStorage.setItem('animeMoodLastResults',JSON.stringify(picks.map(a=>({name:a.name,genres:a.genres||[],type:a.recommendationType}))));scrollToId('results')}
+function showResults(){
+  const ranked=catalog.map(a=>({...a,score:score(a)})).filter(a=>a.name).sort((a,b)=>b.score-a.score);
+  const strong=ranked.slice(0,3);
+  const pool=ranked.slice(3);
+  const wild=pool.length?pool[(Math.abs((answers.desired||[]).length*17+(answers.current||[]).length*11))%Math.min(pool.length,20)]:null;
+  const rest=pool.filter(a=>!wild||a.malId!==wild.malId).slice(0,46);
+  const picks=[...strong,...(wild?[wild]:[]),...rest];
+  picks.forEach((a,i)=>{a.recommendationType=i<3?'strong':i===3?'wildcard':'more'});
+  const top=picks[0]||fallback[0],st=derivedStats(top);
+  document.getElementById('results').classList.remove('hidden');
+  document.getElementById('resultTitle').textContent='Your mood, translated into anime.';
+  document.getElementById('resultIntro').textContent='50+ mood-ranked anime when the live catalog is available: 3 strongest matches, 1 wild card, then deeper matches.';
+  document.getElementById('profile').innerHTML=['Feeling: '+((answers.current||[]).join(', ')||'not specified'),'Want: '+((answers.desired||[]).join(', ')||'open'),'Energy: '+answers.energy,'Pacing: '+answers.pacing,'Commitment: '+answers.length,'Intensity: '+answers.intensity].map(x=>'<span class="chip">'+safeText(x)+'</span>').join('');
+  document.getElementById('flow').innerHTML='<div><b>CURRENT MOOD</b><span>'+safeText((answers.current||[]).join(', ')||'not specified')+'</span></div><div><b>DESIRED EXPERIENCE</b><span>'+safeText((answers.desired||[]).join(', ')||'open')+'</span></div><div><b>ANIME CHARACTERISTICS</b><span>'+safeText((top.genres||[]).slice(0,3).join(' · '))+' · '+Math.round(st.pace)+'/10 pace</span></div><div><b>WHY IT MATCHES</b><span>'+safeText(explain(top))+'</span></div>';
+  document.getElementById('resultsGrid').innerHTML=picks.map((a,i)=>card(a,i===0?'🥇 Strong Match':i===1?'🥈 Strong Match':i===2?'🥉 Strong Match':i===3?'🃏 Your Wild Card':'✦ More Like This')).join('');
+  localStorage.setItem('animeMoodLastResults',JSON.stringify(picks.map(a=>({name:a.name,malId:a.malId,genres:a.genres||[],type:a.recommendationType}))));
+  scrollToId('results');
+}
 function feedback(btn,type){document.querySelectorAll('.feedback button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');feedbackState=type;const last=JSON.parse(localStorage.getItem('animeMoodLastResults')||'[]');let h=JSON.parse(localStorage.getItem('animeMoodFeedback')||'[]');h.push({type,results:last,at:new Date().toISOString()});localStorage.setItem('animeMoodFeedback',JSON.stringify(h.slice(-20)));document.getElementById('resultIntro').textContent=type==='exact'?'Got it — future recommendations will lean toward the genres and styles you liked.':type==='wrong'?'Got it — future recommendations will reduce similar patterns.':'Thanks — the next recommendation set will use this signal.'}
 function source(n){let title=decodeURIComponent(n);window.open('https://theindex.moe/library/anime?search='+encodeURIComponent(title),'_blank')}
 function details(n){let a=catalog.find(x=>x.name===decodeURIComponent(n));alert(a?explain(a):'No details available.')}
-function previewAnime(n){let a=catalog.find(x=>x.name===decodeURIComponent(n));if(!a)return;document.getElementById('previewTitle').textContent=a.name;let rawImg=imageUrl(a),img=imageProxyUrl(rawImg)||rawImg;let trailer=a.trailer?.embed_url||'';let synopsis=a.synopsis||explain(a);document.getElementById('previewBody').innerHTML=(img?'<img class="preview-poster" referrerpolicy="no-referrer" data-raw-src="'+safeText(rawImg)+'" src="'+img+'" alt="'+safeText(a.name)+' poster">':'<div class="preview-poster"></div>')+'<div class="preview-info"><div class="chips"><span class="chip">'+safeText(a.type||'Anime')+'</span><span class="chip">'+safeText(a.status||'Metadata preview')+'</span><span class="chip">'+safeText(a.episodes||'?')+' eps</span></div><p>'+safeText(synopsis)+'</p>'+(trailer?'<iframe class="preview-video" src="'+trailer+'" title="'+safeText(a.name)+' trailer" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>':'<div class="notice">No trailer is available for this title through the current source.</div>')+'</div>';document.getElementById('previewModal').classList.add('open')}
+function findAnime(key){
+  const raw=String(key||'');
+  return catalog.find(x=>String(x.malId||'')===raw)||catalog.find(x=>x.name===decodeURIComponent(raw));
+}
+function previewAnime(key){
+  const a=findAnime(key); if(!a)return;
+  document.getElementById('previewTitle').textContent=a.name;
+  const rawImg=imageUrl(a),proxy=imageProxyUrl(rawImg);
+  const trailer=a.trailer?.embed_url||'';
+  const synopsis=a.synopsis||explain(a);
+  const imageHtml=rawImg
+    ? '<img class="preview-poster" src="'+safeText(rawImg)+'" data-raw-src="'+safeText(rawImg)+'" data-proxy-src="'+safeText(proxy)+'" referrerpolicy="no-referrer" alt="'+safeText(a.name)+' poster">'
+    : '<div class="preview-poster no-image"></div>';
+  document.getElementById('previewBody').innerHTML=imageHtml+'<div class="preview-info"><div class="chips"><span class="chip">'+safeText(a.type||'Anime')+'</span><span class="chip">'+safeText(a.status||'Metadata preview')+'</span><span class="chip">'+safeText(a.episodes||'?')+' eps</span><span class="chip">★ '+safeText(a.score||'—')+'</span></div><p>'+safeText(synopsis)+'</p>'+(trailer?'<iframe class="preview-video" src="'+safeText(trailer)+'" title="'+safeText(a.name)+' trailer" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>':'<div class="notice">No trailer is available for this title through the current source.</div>')+'<button class="primary" data-watch-id="'+safeText(a.malId||a.name)+'" style="margin-top:12px">Find where to watch →</button></div>';
+  document.getElementById('previewModal').classList.add('open');
+}
 function closePreview(){document.getElementById('previewModal').classList.remove('open');document.getElementById('previewBody').innerHTML=''}
 let searchToken=0;
 function normalizeTitle(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
 function mergeAnime(x,base){let genres=(x.genres||[]).map(g=>g.name||g);return {...base,name:x.title_english||x.title||base?.name,malId:x.mal_id,genres:genres.length?genres:(base?.genres||[]),episodes:x.episodes??base?.episodes??'?',images:x.images||base?.images||{},score:x.score??base?.score??0,synopsis:x.synopsis||base?.synopsis||'',status:x.status||base?.status||'',type:x.type||base?.type||'',trailer:x.trailer||base?.trailer||null,url:x.url||base?.url||''}}
-function renderDiscover(list=catalog){let qv=(document.getElementById('search').value||'').toLowerCase().trim();let filtered=list.filter(a=>(a.name+' '+(a.genres||[]).join(' ')+' '+(a.moods||[]).join(' ')).toLowerCase().includes(qv));document.getElementById('discoverGrid').innerHTML=filtered.slice(0,36).map(a=>card(a,'✦ Discover')).join('');document.getElementById('discoverStatus').textContent=qv?'Showing matching titles. Search results are pulled from MyAnimeList through Jikan.':'Showing featured titles. Search to explore the broader catalog.'}
+function renderDiscover(list=catalog){
+  const qv=(document.getElementById('search').value||'').toLowerCase().trim();
+  const filtered=list.filter(a=>(a.name+' '+(a.genres||[]).join(' ')+' '+(a.moods||[]).join(' ')).toLowerCase().includes(qv));
+  document.getElementById('discoverGrid').innerHTML=filtered.slice(0,50).map(a=>card(a,'✦ Discover')).join('');
+  document.getElementById('discoverStatus').textContent=qv?'Showing matching titles. Search results come from MyAnimeList through Jikan.':'Showing '+Math.min(catalog.length,50)+'+ featured titles. Search to explore more.';
+}
 async function enrichFallbacks(){const ids={"Frieren: Beyond Journey’s End":52991,'Haikyuu!!':20583,'Spy x Family':50265,'Violet Evergarden':33352,'Mob Psycho 100':32182,'Death Note':1535};for(const a of catalog){const id=ids[a.name];if(!id)continue;try{const r=await fetch(API+'/anime/'+id+'/full');if(r.ok){const j=await r.json();if(j.data){Object.assign(a,mergeAnime(j.data,a))}}}catch(e){}await new Promise(res=>setTimeout(res,350))}}
-async function loadTopCatalog(){try{for(let page=1;page<=3;page++){const r=await fetch(API+'/top/anime?limit=25&page='+page+'&sfw=true');if(!r.ok)break;const j=await r.json();const mapped=(j.data||[]).map(x=>mergeAnime(x,{name:x.title,genres:(x.genres||[]).map(g=>g.name),moods:[],tone:(x.genres||[]).map(g=>g.name.toLowerCase()),pace:null,emotion:null,comedy:null}));for(const a of mapped){const old=catalog.find(x=>x.malId===a.malId||normalizeTitle(x.name)===normalizeTitle(a.name));if(old)Object.assign(old,a);else catalog.push(a)}renderDiscover();await new Promise(res=>setTimeout(res,900))}document.getElementById('discoverStatus').textContent='Featured catalog loaded. Search any title to query the broader MyAnimeList catalog live.'}catch(e){console.log('Jikan top catalog unavailable',e)}}
+async function loadTopCatalog(){
+  try{
+    for(let page=1;page<=4;page++){
+      const r=await fetch(API+'/top/anime?limit=25&page='+page+'&sfw=true');
+      if(!r.ok)break;
+      const j=await r.json();
+      const mapped=(j.data||[]).map(x=>mergeAnime(x,{name:x.title,malId:x.mal_id,genres:(x.genres||[]).map(g=>g.name),moods:[],tone:(x.genres||[]).map(g=>g.name.toLowerCase()),pace:null,emotion:null,comedy:null}));
+      for(const a of mapped){
+        const old=catalog.find(x=>x.malId===a.malId||normalizeTitle(x.name)===normalizeTitle(a.name));
+        if(old)Object.assign(old,a); else catalog.push(a);
+      }
+      renderDiscover();
+      await new Promise(res=>setTimeout(res,1100));
+    }
+    document.getElementById('discoverStatus').textContent='Live catalog loaded: '+catalog.length+' anime available for mood matching. Search can reach the broader MyAnimeList catalog.';
+    renderHeroArt();
+  }catch(e){console.log('Jikan top catalog unavailable',e)}
+}
 async function searchAnimeRemote(query){const token=++searchToken;try{const r=await fetch(API+'/anime?q='+encodeURIComponent(query)+'&limit=24&sfw=true');if(!r.ok)throw new Error('search failed');const j=await r.json();if(token!==searchToken)return;const mapped=(j.data||[]).map(x=>mergeAnime(x,{name:x.title,genres:(x.genres||[]).map(g=>g.name),moods:[],tone:(x.genres||[]).map(g=>g.name.toLowerCase()),pace:6,emotion:6,comedy:(x.genres||[]).some(g=>g.name==='Comedy')?8:3}));for(const a of mapped){const old=catalog.find(x=>x.malId===a.malId||normalizeTitle(x.name)===normalizeTitle(a.name));if(old)Object.assign(old,a);else catalog.push(a)}renderDiscover(mapped)}catch(e){document.getElementById('discoverStatus').textContent='Live catalog search is temporarily unavailable; showing local matches.';renderDiscover()}}
 document.getElementById('search').addEventListener('input',()=>{const qv=document.getElementById('search').value.trim();renderDiscover();if(qv.length>=2)searchAnimeRemote(qv)});
 // Centralized click handling keeps static and dynamically-rendered controls interactive.
 document.addEventListener('click',function(e){
-  const el=e.target.closest('[data-action],[data-pick],[data-preview],[data-watch],[data-feedback],[data-overlay]');
+  const el=e.target.closest('[data-action],[data-pick],[data-preview-id],[data-watch-id],[data-feedback],[data-overlay]');
   if(!el)return;
   if(el.dataset.overlay==='auth' && e.target===el){closeAuth();return}
   if(el.dataset.overlay==='preview' && e.target===el){closePreview();return}
   if(el.dataset.pick){pick(el.dataset.pick);return}
-  if(el.dataset.preview){previewAnime(el.dataset.preview);return}
-  if(el.dataset.watch){source(el.dataset.watch);return}
+  if(el.dataset.previewId){previewAnime(el.dataset.previewId);return}
+  if(el.dataset.watchId){source(el.dataset.watchId);return}
   if(el.dataset.feedback){feedback(el,el.dataset.feedback);return}
   switch(el.dataset.action){
     case 'scroll-quiz': scrollToId('quiz'); break;
@@ -110,7 +210,13 @@ document.addEventListener('click',function(e){
   }
 });
 
-renderQ();renderDiscover();(async()=>{await enrichFallbacks();renderDiscover();await loadTopCatalog()})();
+function renderHeroArt(){
+  const box=document.getElementById('heroArt'); if(!box)return;
+  const featured=catalog.filter(a=>imageUrl(a)).slice(0,4);
+  if(!featured.length)return;
+  box.innerHTML='<i class="orb o1"></i><i class="orb o2"></i><div class="hero-posters">'+featured.map((a,i)=>'<div class="hero-poster hp'+i+'"><img src="'+safeText(imageUrl(a))+'" data-raw-src="'+safeText(imageUrl(a))+'" data-proxy-src="'+safeText(imageProxyUrl(imageUrl(a)))+'" referrerpolicy="no-referrer" alt="'+safeText(a.name)+'"></div>').join('')+'</div><div class="anime-kanji">アニメ</div><div class="anime-caption">MOOD × STORY × DISCOVERY</div>';
+}
+renderQ();renderDiscover();renderHeroArt();(async()=>{await enrichFallbacks();renderDiscover();renderHeroArt();await loadTopCatalog()})();
 
 function openAuth(){document.getElementById('authModal').classList.add('open');refreshAuthUI()}
 function closeAuth(){document.getElementById('authModal').classList.remove('open')}
