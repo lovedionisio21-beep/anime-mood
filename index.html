@@ -64,7 +64,16 @@ const questions=[
 {key:'comedy',title:'How much comedy?',multi:false,opts:[['low','Low','Mostly serious'],['medium','Some','A little balance'],['high','High','Make me laugh']]}
 ];
 function scrollToId(id){document.getElementById(id).scrollIntoView({behavior:'smooth'})}
-function renderQ(){let x=questions[q],v=answers[x.key]||[];if(!Array.isArray(v))v=[v];document.getElementById('bar').style.width=((q+1)/questions.length*100)+'%';document.getElementById('question').innerHTML='<div class="q">'+x.title+'</div><div class="choices">'+x.opts.map(o=>'<button class="choice '+(v.includes(o[0])?'selected':'')+'" data-pick="' + o[0] + '"><b>'+o[1]+'</b>'+(o[2]?'<small>'+o[2]+'</small>':'')+'</button>').join('')+'</div>'}
+function renderQ(){
+  const x=questions[q],v=answers[x.key]||[];
+  const values=Array.isArray(v)?v:[v];
+  document.getElementById('bar').style.width=((q+1)/questions.length*100)+'%';
+  document.getElementById('question').innerHTML=
+    '<div class="q">'+x.title+'</div>'+
+    '<div class="choices">'+
+    x.opts.map(o=>'<button class="choice '+(values.includes(o[0])?'selected':'')+'" data-pick="'+o[0]+'"><b>'+o[1]+'</b>'+(o[2]?'<small>'+o[2]+'</small>':'')+'</button>').join('')+
+    '</div>';
+}
 function pick(v){let x=questions[q];if(x.multi){let a=answers[x.key];if(!Array.isArray(a))a=[];a=a.includes(v)?a.filter(z=>z!==v):a.length<3?[...a,v]:a;answers[x.key]=a}else answers[x.key]=v;renderQ()}
 function next(){if(q<questions.length-1){q++;renderQ()}else showResults()}
 function back(){if(q>0){q--;renderQ()}}
