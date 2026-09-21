@@ -68,6 +68,7 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 function scrollToId(id){$(id)?.scrollIntoView({behavior:'smooth',block:'start'})}
 function toast(msg){let t=$('toast');if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t)}t.textContent=msg;t.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove('show'),2800)}
 function imageUrl(a){return a?.images?.jpg?.large_image_url||a?.images?.webp?.large_image_url||a?.images?.jpg?.image_url||a?.images?.webp?.image_url||''}
+function imageSrc(a){const raw=imageUrl(a);return imageProxyUrl(raw)||raw}
 function imageProxyUrl(raw){return raw?'https://images.weserv.nl/?url='+encodeURIComponent(raw.replace(/^https?:\/\//,'')):''}
 function normalizeTitle(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
 function findAnime(key){const raw=String(key||'');return catalog.find(a=>String(a.malId||'')===raw)||catalog.find(a=>normalizeTitle(a.name)===normalizeTitle(raw))}
@@ -166,7 +167,7 @@ function explain(a){
 function card(a,label){
  const raw=imageUrl(a),proxy=imageProxyUrl(raw),key=String(a.malId||a.name),list=getList(),saved=list[key];
  const genres=(a.genres||[]).slice(0,3);
- return '<article class="card"><div class="poster '+(raw?'':'no-image')+'">'+(raw?'<img src="'+safeText(raw)+'" data-raw-src="'+safeText(raw)+'" data-proxy-src="'+safeText(proxy)+'" loading="lazy" referrerpolicy="no-referrer" alt="'+safeText(a.name)+' poster">':'')+'<span class="rank">'+safeText(label)+'</span><h3>'+safeText(a.name)+'</h3></div><div class="body"><div>'+genres.map(g=>'<span class="tag">'+safeText(g)+'</span>').join(' ')+'</div><p class="why"><b>Why it matches:</b> '+safeText(explain(a))+'</p><div class="meta"><span>'+Math.round(a.fit||a.score||0)+' fit</span><span>'+(a.episodes||'?')+' eps</span></div><div class="buttons"><button class="watch" data-preview-id="'+safeText(key)+'">Preview</button><button data-watch-id="'+safeText(key)+'">Where to watch</button></div><div class="list-add"><select data-list-select="'+safeText(key)+'"><option value="watching" '+(saved?.status==='watching'?'selected':'')+'>Watching</option><option value="completed" '+(saved?.status==='completed'?'selected':'')+'>Completed</option><option value="plan" '+(saved?.status==='plan'?'selected':'')+'>Plan to Watch</option><option value="dropped" '+(saved?.status==='dropped'?'selected':'')+'>Dropped</option></select><button data-save-id="'+safeText(key)+'">'+(saved?'Update':'＋ My List')+'</button></div></div></article>';
+ return '<article class="card"><div class="poster '+(raw?'':'no-image')+'">'+(raw?'<img src="'+safeText(proxy||raw)+'" data-raw-src="'+safeText(raw)+'" data-proxy-src="'+safeText(proxy)+'" loading="lazy" referrerpolicy="no-referrer" alt="'+safeText(a.name)+' poster">':'')+'<span class="rank">'+safeText(label)+'</span><h3>'+safeText(a.name)+'</h3></div><div class="body"><div>'+genres.map(g=>'<span class="tag">'+safeText(g)+'</span>').join(' ')+'</div><p class="why"><b>Why it matches:</b> '+safeText(explain(a))+'</p><div class="meta"><span>'+Math.round(a.fit||a.score||0)+' fit</span><span>'+(a.episodes||'?')+' eps</span></div><div class="buttons"><button class="watch" data-preview-id="'+safeText(key)+'">Preview</button><button data-watch-id="'+safeText(key)+'">Where to watch</button></div><div class="list-add"><select data-list-select="'+safeText(key)+'"><option value="watching" '+(saved?.status==='watching'?'selected':'')+'>Watching</option><option value="completed" '+(saved?.status==='completed'?'selected':'')+'>Completed</option><option value="plan" '+(saved?.status==='plan'?'selected':'')+'>Plan to Watch</option><option value="dropped" '+(saved?.status==='dropped'?'selected':'')+'>Dropped</option></select><button data-save-id="'+safeText(key)+'">'+(saved?'Update':'＋ My List')+'</button></div></div></article>';
 }
 
 function showResults(){
@@ -217,15 +218,16 @@ function renderBrain(){
 }
 
 function source(key){const a=findAnime(key),title=a?.name||String(key||'');window.open('https://theindex.moe/library/anime?search='+encodeURIComponent(title),'_blank')}
-function previewAnime(key){
- const a=findAnime(key);if(!a){toast('Anime data is still loading. Try again in a moment.');return}
- $('previewTitle').textContent=a.name;
+async function previewAnime(key){
+ let a=findAnime(key);if(!a){toast('Anime data is still loading. Try again in a moment.');return}
+ if(a.malId&&(!a.synopsis||!a.trailer||!imageUrl(a))){try{const j=await fetchJson(API+'/anime/'+a.malId+'/full');if(j.data){a=mergeAnime(j.data,a);upsert([a]);renderDiscover();renderHeroArt()}}catch(e){}}
+
+ $('previewTitle').textContent=a.name;$('previewBody').innerHTML='<div class="notice">Loading anime details…</div>';$('previewModal').classList.add('open');
  const raw=imageUrl(a),proxy=imageProxyUrl(raw),trailer=a.trailer?.embed_url||'',synopsis=a.synopsis||explain(a),saved=getList()[String(a.malId||a.name)];
- $('previewBody').innerHTML=(raw?'<img class="preview-poster" src="'+safeText(raw)+'" data-raw-src="'+safeText(raw)+'" data-proxy-src="'+safeText(proxy)+'" referrerpolicy="no-referrer" alt="'+safeText(a.name)+' poster">':'<div class="preview-poster no-image"></div>')+
+ $('previewBody').innerHTML=(raw?'<img class="preview-poster" src="'+safeText(proxy||raw)+'" data-raw-src="'+safeText(raw)+'" data-proxy-src="'+safeText(proxy)+'" referrerpolicy="no-referrer" alt="'+safeText(a.name)+' poster">':'<div class="preview-poster no-image"></div>')+
  '<div class="preview-info"><div class="chips"><span class="chip">'+safeText(a.type||'Anime')+'</span><span class="chip">'+safeText(a.status||'Metadata preview')+'</span><span class="chip">'+safeText(a.episodes||'?')+' eps</span><span class="chip">★ '+safeText(a.score||'—')+'</span></div><div class="compat">Your current fit: '+Math.round(scoreAnime(a))+'</div><p>'+safeText(synopsis)+'</p>'+
  (trailer?'<iframe class="preview-video" src="'+safeText(trailer)+'" title="'+safeText(a.name)+' trailer" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>':'<div class="notice">No trailer is available through the current source.</div>')+
  '<div class="preview-extra"><button data-save-preview="'+safeText(a.malId||a.name)+'" data-status="watching">▶ Watching</button><button data-save-preview="'+safeText(a.malId||a.name)+'" data-status="completed">✓ Completed</button><button data-save-preview="'+safeText(a.malId||a.name)+'" data-status="plan">＋ Plan to Watch</button><button data-watch-id="'+safeText(a.malId||a.name)+'">Find where to watch →</button></div></div>';
- $('previewModal').classList.add('open');
 }
 function closePreview(){$('previewModal').classList.remove('open');$('previewBody').innerHTML=''}
 
@@ -284,14 +286,14 @@ function renderDiscover(list=catalog){
 function renderHeroArt(){
  const box=$('heroArt');if(!box)return;
  const featured=catalog.filter(a=>imageUrl(a)).slice(0,4);if(!featured.length)return;
- box.innerHTML='<div class="hero-posters">'+featured.map((a,i)=>'<div class="hero-poster hp'+i+'"><img src="'+safeText(imageUrl(a))+'" data-raw-src="'+safeText(imageUrl(a))+'" data-proxy-src="'+safeText(imageProxyUrl(imageUrl(a)))+'" referrerpolicy="no-referrer" alt="'+safeText(a.name)+'"></div>').join('')+'</div><div class="anime-kanji">アニメ</div><div class="anime-caption">MOOD × STORY × DISCOVERY</div>';
+ box.innerHTML='<div class="hero-posters">'+featured.map((a,i)=>'<div class="hero-poster hp'+i+'"><img src="'+safeText(imageSrc(a))+'" data-raw-src="'+safeText(imageUrl(a))+'" data-proxy-src="'+safeText(imageProxyUrl(imageUrl(a)))+'" referrerpolicy="no-referrer" alt="'+safeText(a.name)+'"></div>').join('')+'</div><div class="anime-kanji">アニメ</div><div class="anime-caption">MOOD × STORY × DISCOVERY</div>';
 }
 
 window.addEventListener('error',e=>{
  const t=e.target;if(!t||t.tagName!=='IMG'||!t.dataset)return;
  if(t.dataset.proxySrc&&!t.dataset.proxyTried){t.dataset.proxyTried='1';t.src=t.dataset.proxySrc;return}
  if(t.dataset.rawSrc&&!t.dataset.rawTried){t.dataset.rawTried='1';t.src=t.dataset.rawSrc;return}
- t.removeAttribute('src');const p=t.closest('.poster');if(p)p.classList.add('no-image');
+ t.removeAttribute('src');t.classList.add('image-failed');const p=t.closest('.poster,.preview-poster');if(p)p.classList.add('no-image');
 },true);
 
 function openAuth(){ $('authModal').classList.add('open');refreshAuthUI() }
@@ -348,8 +350,8 @@ document.addEventListener('click',e=>{
   case'scroll-quiz':scrollToId('quiz');break;case'scroll-discover':scrollToId('discover');break;case'open-auth':openAuth();break;case'close-auth':closeAuth();break;case'close-preview':closePreview();break;case'back':back();break;case'next':next();break;case'auth-signin':authSignIn();break;case'auth-signup':authSignUp();break;case'auth-signout':authSignOut();break;case'save-profile':saveProfile();break;
  }
 });
-$('search').addEventListener('input',()=>{clearTimeout(window.__search);window.__search=setTimeout(()=>{const qv=$('search').value.trim();renderDiscover();if(qv.length>=2)searchAnimeRemote(qv)},350)});
-$('searchFilter').addEventListener('change',()=>renderDiscover());
+$('search')?.addEventListener('input',()=>{clearTimeout(window.__search);window.__search=setTimeout(()=>{const qv=$('search').value.trim();renderDiscover();if(qv.length>=2)searchAnimeRemote(qv)},350)});
+$('searchFilter')?.addEventListener('change',()=>renderDiscover());
 
 (async()=>{
  renderQ();renderList();renderBrain();renderDiscover();renderHeroArt();refreshAuthUI();initAuth();
