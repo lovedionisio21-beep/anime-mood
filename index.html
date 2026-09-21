@@ -123,6 +123,31 @@ async function enrichFallbacks(){const ids={"Frieren: Beyond Journey’s End":52
 async function loadTopCatalog(){try{for(let page=1;page<=3;page++){const r=await fetch(API+'/top/anime?limit=25&page='+page+'&sfw=true');if(!r.ok)break;const j=await r.json();const mapped=(j.data||[]).map(x=>mergeAnime(x,{name:x.title,genres:(x.genres||[]).map(g=>g.name),moods:[],tone:(x.genres||[]).map(g=>g.name.toLowerCase()),pace:null,emotion:null,comedy:null}));for(const a of mapped){const old=catalog.find(x=>x.malId===a.malId||normalizeTitle(x.name)===normalizeTitle(a.name));if(old)Object.assign(old,a);else catalog.push(a)}renderDiscover();await new Promise(res=>setTimeout(res,900))}document.getElementById('discoverStatus').textContent='Featured catalog loaded. Search any title to query the broader MyAnimeList catalog live.'}catch(e){console.log('Jikan top catalog unavailable',e)}}
 async function searchAnimeRemote(query){const token=++searchToken;try{const r=await fetch(API+'/anime?q='+encodeURIComponent(query)+'&limit=24&sfw=true');if(!r.ok)throw new Error('search failed');const j=await r.json();if(token!==searchToken)return;const mapped=(j.data||[]).map(x=>mergeAnime(x,{name:x.title,genres:(x.genres||[]).map(g=>g.name),moods:[],tone:(x.genres||[]).map(g=>g.name.toLowerCase()),pace:6,emotion:6,comedy:(x.genres||[]).some(g=>g.name==='Comedy')?8:3}));for(const a of mapped){const old=catalog.find(x=>x.malId===a.malId||normalizeTitle(x.name)===normalizeTitle(a.name));if(old)Object.assign(old,a);else catalog.push(a)}renderDiscover(mapped)}catch(e){document.getElementById('discoverStatus').textContent='Live catalog search is temporarily unavailable; showing local matches.';renderDiscover()}}
 document.getElementById('search').addEventListener('input',()=>{const qv=document.getElementById('search').value.trim();renderDiscover();if(qv.length>=2)searchAnimeRemote(qv)});
+// Centralized click handling keeps static and dynamically-rendered controls interactive.
+document.addEventListener('click',function(e){
+  const el=e.target.closest('[data-action],[data-pick],[data-preview],[data-watch],[data-feedback],[data-overlay]');
+  if(!el)return;
+  if(el.dataset.overlay==='auth' && e.target===el){closeAuth();return}
+  if(el.dataset.overlay==='preview' && e.target===el){closePreview();return}
+  if(el.dataset.pick){pick(el.dataset.pick);return}
+  if(el.dataset.preview){previewAnime(el.dataset.preview);return}
+  if(el.dataset.watch){source(el.dataset.watch);return}
+  if(el.dataset.feedback){feedback(el,el.dataset.feedback);return}
+  switch(el.dataset.action){
+    case 'scroll-quiz': scrollToId('quiz'); break;
+    case 'scroll-discover': scrollToId('discover'); break;
+    case 'open-auth': openAuth(); break;
+    case 'close-auth': closeAuth(); break;
+    case 'close-preview': closePreview(); break;
+    case 'back': back(); break;
+    case 'next': next(); break;
+    case 'auth-signin': authSignIn(); break;
+    case 'auth-signup': authSignUp(); break;
+    case 'auth-signout': authSignOut(); break;
+    case 'save-profile': saveProfile(); break;
+  }
+});
+
 renderQ();renderDiscover();(async()=>{await enrichFallbacks();renderDiscover();await loadTopCatalog()})();
 
 function openAuth(){document.getElementById('authModal').classList.add('open');refreshAuthUI()}
@@ -174,31 +199,6 @@ async function initAuth(){
   authUser=data.session?.user||null;
   supabaseClient.auth.onAuthStateChange((_event,session)=>{authUser=session?.user||null;refreshAuthUI()});
 }
-
-// Centralized click handling keeps static and dynamically-rendered controls interactive.
-document.addEventListener('click',function(e){
-  const el=e.target.closest('[data-action],[data-pick],[data-preview],[data-watch],[data-feedback],[data-overlay]');
-  if(!el)return;
-  if(el.dataset.overlay==='auth' && e.target===el){closeAuth();return}
-  if(el.dataset.overlay==='preview' && e.target===el){closePreview();return}
-  if(el.dataset.pick){pick(el.dataset.pick);return}
-  if(el.dataset.preview){previewAnime(el.dataset.preview);return}
-  if(el.dataset.watch){source(el.dataset.watch);return}
-  if(el.dataset.feedback){feedback(el,el.dataset.feedback);return}
-  switch(el.dataset.action){
-    case 'scroll-quiz': scrollToId('quiz'); break;
-    case 'scroll-discover': scrollToId('discover'); break;
-    case 'open-auth': openAuth(); break;
-    case 'close-auth': closeAuth(); break;
-    case 'close-preview': closePreview(); break;
-    case 'back': back(); break;
-    case 'next': next(); break;
-    case 'auth-signin': authSignIn(); break;
-    case 'auth-signup': authSignUp(); break;
-    case 'auth-signout': authSignOut(); break;
-    case 'save-profile': saveProfile(); break;
-  }
-});
 
 initAuth();
 </script>
