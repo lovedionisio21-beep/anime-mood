@@ -1,5 +1,5 @@
-const CACHE='anime-mood-v0.6';
-const ASSETS=['./','./index.html','./manifest.webmanifest'];
+const CACHE='anime-mood-v0.7';
+const ASSETS=['./','./index.html','./app.js?v=9','./manifest.webmanifest','./assets/anime-mood.svg'];
 
 self.addEventListener('install',event=>{
   self.skipWaiting();
