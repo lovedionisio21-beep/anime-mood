@@ -1,4 +1,4 @@
-const CACHE='anime-mood-v0.5';
+const CACHE='anime-mood-v0.6';
 const ASSETS=['./','./index.html','./manifest.webmanifest'];
 
 self.addEventListener('install',event=>{
