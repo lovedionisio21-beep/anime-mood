@@ -136,7 +136,11 @@ function showResults(){
   scrollToId('results');
 }
 function feedback(btn,type){document.querySelectorAll('.feedback button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');feedbackState=type;const last=JSON.parse(localStorage.getItem('animeMoodLastResults')||'[]');let h=JSON.parse(localStorage.getItem('animeMoodFeedback')||'[]');h.push({type,results:last,at:new Date().toISOString()});localStorage.setItem('animeMoodFeedback',JSON.stringify(h.slice(-20)));document.getElementById('resultIntro').textContent=type==='exact'?'Got it — future recommendations will lean toward the genres and styles you liked.':type==='wrong'?'Got it — future recommendations will reduce similar patterns.':'Thanks — the next recommendation set will use this signal.'}
-function source(n){let title=decodeURIComponent(n);window.open('https://theindex.moe/library/anime?search='+encodeURIComponent(title),'_blank')}
+function source(key){
+  const a=findAnime(key);
+  const title=a?.name||decodeURIComponent(String(key||''));
+  window.open('https://theindex.moe/library/anime?search='+encodeURIComponent(title),'_blank');
+}
 function details(n){let a=catalog.find(x=>x.name===decodeURIComponent(n));alert(a?explain(a):'No details available.')}
 function findAnime(key){
   const raw=String(key||'');
